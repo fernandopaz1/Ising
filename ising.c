@@ -9,13 +9,17 @@ int rand(void);
 float aleatorio(void);
 float powf(float x, float y);
 int poblar(int *red, float p, int dim);
-//int imprimir(int *red, int dim);
+int imprimir(int *red, int dim);
 int masa(int *red, int dim,int *etiqueta_percolante, int *mass);
-int problema2(int N);
+int problema2a(int N);
+int problema2b(int N);
 int campo_med(int *red,int dim,int i);
+int energia_con_int(int *red, int dim, float B,float J);
+int energia_sin_int(int *red, int dim, float B);
 int p_libre(float J,float *p_l);
 int p_int(float B,float *p_i);
 int flip_spin(int *red,int dim,int *spin,float *delta_E,float J,float B,float *p_l,float *p_i);
+
 
 int main(int argc,char *argv[]){
 	int iteraciones;
@@ -31,13 +35,13 @@ int main(int argc,char *argv[]){
 
 
 
-	problema2(iteraciones);
+	problema2a(iteraciones);
 
 	end = clock();								//time count stops 
 
 
-	total_time = ((double) (((end - start)) / CLOCKS_PER_SEC)/60)/60;	
-	printf("\nEl tiempo (horas) requerido es:  %f \n", total_time);		//calulate total time
+	total_time = ((double) (((float)(end - start)) / (float)CLOCKS_PER_SEC)/60.0);	
+	printf("\nEl tiempo (minutos) requerido es:  %f \n", total_time);		//calulate total time
 
 	
 	return 0;
@@ -106,8 +110,9 @@ return cmed;
 int flip_spin(int *red,int dim,int *spin,float *delta_E,float J,float B,float *p_l,float *p_i){ 
 	int i,ind_l,ind_i,cmed;
 	float p;
-	i=round(aleatorio()*((float)(dim*dim)));
+	i=(int)(round(aleatorio()*((float)(dim*dim))));
 	*spin=*(red+i);
+		
 	cmed=campo_med(red,dim,i);
 	
 	*delta_E=2*(*spin)*(B+J*cmed); 	
@@ -120,6 +125,31 @@ int flip_spin(int *red,int dim,int *spin,float *delta_E,float J,float B,float *p
 		p=(*(p_i+ind_i))*(*(p_l+ind_l));
 		if(aleatorio()<p){
 			*(red+i)=(-1)**(red+i);
+		}
+	}
+
+return 0;	
+}	
+
+int flip_libre(int *red,int dim,int *spin,float *delta_E,float B,float *p_l){ 
+	int i,ind_l,ind_i,cmed;
+	float p;
+	i=(int)(round(aleatorio()*((float)(dim*dim))));
+	*spin=*(red+i);
+		
+	
+	*delta_E=2*(*spin)*B; 	
+	
+	ind_l=(*spin+1)/2;								//indice de la probabilidad libre
+	if(*delta_E<0){	
+		*(red+i)=(-1)**(red+i);}
+	else{	
+		p=*(p_l+ind_l);
+		if(aleatorio()<p){
+			*(red+i)=(-1)**(red+i);
+		}
+		else{
+			*delta_E=0;
 		}
 	}
 
@@ -150,14 +180,26 @@ int M(int *red, int dim){
 return m/(dim*dim);
 }
 
-int energia_sin_int(int *red, int dim, float J){
+int energia_sin_int(int *red, int dim, float B){
 	int i;
 	float u;
 
 	u=0;	
 
 	for(i=0;i<dim*dim;i++){
-		u=u+J*(*(red+i));
+		u=u+B*(*(red+i));
+	}
+return u;
+}
+
+int energia_con_int(int *red, int dim, float B,float J){
+	int i;
+	float u;
+
+	u=0;	
+
+	for(i=0;i<dim*dim;i++){
+		u=u+B*(*(red+i));
 	}
 return u;
 }
@@ -165,7 +207,56 @@ return u;
 
 
 
-int problema2(int N){
+int problema2a(int N){
+	int i, j, k, *red, dim,*spin;
+	float p,*u, acum,*m,*H,*delta_E,*p_l,B0,B,delta_T,T;
+	
+	FILE *fp= fopen("1a_dim10", "w");	
+	
+	dim=10;
+	delta_T=0.1;	
+	acum=0;
+		
+	red=(int*)malloc(dim*dim*sizeof(int));
+	delta_E=(float*)malloc(sizeof(float));
+	spin=(int*)malloc(sizeof(int));
+	
+	m=(float*)malloc(sizeof(float));
+	H=(float*)malloc(sizeof(float));
+	p_l=(float*)malloc(2*sizeof(float));
+
+	poblar(red, 0.5, dim);
+
+	
+	B0=0.0001;
+	
+	for(T=10;T>0.0;T=T-delta_T){
+		B=B0/T;
+		p_libre(B,p_l);
+		for(i=0;i<N-1;i++){
+			flip_libre(red,dim,spin,delta_E,B,p_l);    //termzlizacion
+			
+		}
+		flip_libre(red,dim,spin,delta_E,B,p_l);
+		*H=energia_sin_int(red,dim, B);
+		*m=M(red,dim);
+		imprimir(red,dim);
+		fprintf(fp, "%f %f %f \n", T, *H, *m);	
+	}
+
+free(red);
+free(delta_E);
+free(spin);
+free(m);
+free(H);
+free(p_l);
+fclose(fp);
+return 0;
+}
+
+
+
+int problema2b(int N){
 	int i, j, k, *red, dim,paso,*spin;
 	float p,*probas,J,*u, acum,*m,*H,*delta_E,*p_i,*p_l,B;
 		
@@ -186,18 +277,19 @@ int problema2(int N){
 	poblar(red, 0.5, dim);
 
 	
-	J=2.0;
-	B=0.0;
+	J=0.0;
+	B=1.0;
 	
 	p_libre(B,p_i);
 	p_int(J,p_l);
 	
 	
-	*H=energia_sin_int(red,dim, J);
+	*H=energia_sin_int(red,dim, B);
 	*m=M(red,dim);
 	for(i=0;i<N-1;i++){
 		flip_spin(red,dim,spin,delta_E,J,B,p_l,p_i);
 		*(H+i+1)=*(H+i)+*delta_E;
+		*(m+i+1)=*(m+i)+2*(*spin);
 	}
 	
 	
@@ -228,6 +320,7 @@ int imprimir(int *red, int dim){
 		}	
 	printf("\n");
 	}
+printf("\n");
 return 0;
 }
 
