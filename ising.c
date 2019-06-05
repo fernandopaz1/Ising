@@ -11,31 +11,34 @@ float powf(float x, float y);
 int poblar(int *red, float p, int dim);
 int imprimir(int *red, int dim);
 int masa(int *red, int dim,int *etiqueta_percolante, int *mass);
-int problema2a(int N);
+int problema2a(int dim, int N);
 int problema2b(int N);
 int campo_med(int *red,int dim,int i);
+float M(int *red, int dim);
 int energia_con_int(int *red, int dim, float B,float J);
-int energia_sin_int(int *red, int dim, float B);
-int p_libre(float J,float *p_l);
-int p_int(float B,float *p_i);
+float energia_sin_int(int *red, int dim, float B);
+int p_libre(float B,float *p_l);
+int p_int(float J,float *p_i);
 int flip_spin(int *red,int dim,int *spin,float *delta_E,float J,float B,float *p_l,float *p_i);
+int flip_libre(int *red,int dim,int *spin,float *delta_E,float B,float *p_l,int *indice);
 
 
 int main(int argc,char *argv[]){
-	int iteraciones;
+	int iteraciones,dim;
 
 
 	double total_time;
 	clock_t start, end;
 	start = clock();
 
+	sscanf(argv[1], "%d", & dim);
+	sscanf(argv[2], "%d", & iteraciones);
 	
-	sscanf(argv[1], "%d", & iteraciones);
 	srand(time(NULL)); 
 
 
 
-	problema2a(iteraciones);
+	problema2a(dim,iteraciones);
 
 	end = clock();								//time count stops 
 
@@ -59,18 +62,18 @@ return a;
 
 
 
-int p_libre(float J,float *p_l){
+int p_int(float J,float *p_i){
 	int i;
 	for(i=0;i<5;i++){
-		*p_l=exp(-8*(1.0-0.5*((float)(i)))*J);
+		*(p_i+i)=exp(-4*(1.0-0.5*((float)(i)))*J);
 	}
 return 0;
 }
 
-int p_int(float B,float *p_i){
+int p_libre(float B,float *p_l){
 	int i;
 	for(i=0;i<2;i++){
-		*p_i=exp(-2*(1.0-0.5*((float)(i)))*B);
+		*(p_l+i)=exp(2.0*(1.0-2.0*((float)i))*B);
 	}
 return 0;
 }
@@ -119,40 +122,38 @@ int flip_spin(int *red,int dim,int *spin,float *delta_E,float J,float B,float *p
 	
 	ind_l=(*spin+1)/2;								//indice de la probabilidad libre
 	ind_i=((*spin)*cmed+4)/2;							//indeice de la probabilidad de interaccion
-	if(*delta_E<0){	
-		*(red+i)=(-1)**(red+i);}
+	if(*delta_E<0.0){	
+		*(red+i)=(*spin)*(-1);}
 	else{	
 		p=(*(p_i+ind_i))*(*(p_l+ind_l));
 		if(aleatorio()<p){
-			*(red+i)=(-1)**(red+i);
+			*(red+i)=(*spin)*(-1);
 		}
 	}
 
 return 0;	
 }	
 
-int flip_libre(int *red,int dim,int *spin,float *delta_E,float B,float *p_l){ 
+int flip_libre(int *red,int dim,int *spin,float *delta_E,float B,float *p_l,int *indice){ 
 	int i,ind_l,ind_i,cmed;
 	float p;
 	i=(int)(round(aleatorio()*((float)(dim*dim))));
 	*spin=*(red+i);
 		
-	
+	*indice=i;
 	*delta_E=2*(*spin)*B; 	
 	
 	ind_l=(*spin+1)/2;								//indice de la probabilidad libre
-	if(*delta_E<0){	
-		*(red+i)=(-1)**(red+i);}
-	else{	
+	
+	
 		p=*(p_l+ind_l);
+//		printf("%lf %lf\n",p, *delta_E, ind_l);
 		if(aleatorio()<p){
-			*(red+i)=(-1)**(red+i);
+			*(red+i)=(*spin)*(-1);
 		}
 		else{
-			*delta_E=0;
+			*delta_E=0.0;
 		}
-	}
-
 return 0;	
 }	
 
@@ -168,28 +169,28 @@ return 0;
 }
 
 
-int M(int *red, int dim){
+float M(int *red, int dim){
 	int i;
-	float m,u;
+	float m;
 
 	m=0;	
 
 	for(i=0;i<dim*dim;i++){
 		m=m+(*(red+i));
 	}
-return m/(dim*dim);
+return m/((float)(dim*dim));
 }
 
-int energia_sin_int(int *red, int dim, float B){
+float energia_sin_int(int *red, int dim, float B){
 	int i;
 	float u;
 
 	u=0;	
 
 	for(i=0;i<dim*dim;i++){
-		u=u+B*(*(red+i));
+		u=u-*(red+i);
 	}
-return u;
+return B*u;
 }
 
 int energia_con_int(int *red, int dim, float B,float J){
@@ -199,49 +200,73 @@ int energia_con_int(int *red, int dim, float B,float J){
 	u=0;	
 
 	for(i=0;i<dim*dim;i++){
-		u=u+B*(*(red+i));
+		u=u-*(red+i);
 	}
-return u;
+return B*u;
 }
 
 
 
 
-int problema2a(int N){
-	int i, j, k, *red, dim,*spin;
-	float p,*u, acum,*m,*H,*delta_E,*p_l,B0,B,delta_T,T;
+int problema2a(int dim,int N){
+	int i, j, k, *red,*spin, N_prom,*indice;
+	float p,*u, aceptacion,*m,*m_cuad,*H,*H_cuad,*delta_E,*p_l,B0,B,delta_T,T,a,b;
 	
-	FILE *fp= fopen("1a_dim10", "w");	
+	FILE *fp= fopen("1a_dim10", "w");
+	FILE *fc= fopen("correlacion2a", "w");
+	FILE *findi= fopen("indices", "a");	
 	
-	dim=10;
+
 	delta_T=0.1;	
-	acum=0;
+	aceptacion=0;
+	N_prom=dim*dim;
 		
 	red=(int*)malloc(dim*dim*sizeof(int));
 	delta_E=(float*)malloc(sizeof(float));
 	spin=(int*)malloc(sizeof(int));
+	indice=(int*)malloc(sizeof(int));
 	
 	m=(float*)malloc(sizeof(float));
 	H=(float*)malloc(sizeof(float));
+	m_cuad=(float*)malloc(sizeof(float));
+	H_cuad=(float*)malloc(sizeof(float));
 	p_l=(float*)malloc(2*sizeof(float));
 
 	poblar(red, 0.5, dim);
 
 	
-	B0=0.0001;
+	B=0.5;
+	p_libre(B,p_l);
 	
-	for(T=10;T>0.0;T=T-delta_T){
-		B=B0/T;
+
+	
+	for(B=0.0;B<10.0;B=B+0.1){
+		fprintf(fc, "%f",B);	
+		//B=B0/T;
 		p_libre(B,p_l);
-		for(i=0;i<N-1;i++){
-			flip_libre(red,dim,spin,delta_E,B,p_l);    //termzlizacion
-			
-		}
-		flip_libre(red,dim,spin,delta_E,B,p_l);
-		*H=energia_sin_int(red,dim, B);
-		*m=M(red,dim);
-		imprimir(red,dim);
-		fprintf(fp, "%f %f %f \n", T, *H, *m);	
+		for(i=0;i<100000;i++){
+			flip_libre(red,dim,spin,delta_E,B,p_l,indice);    //termzlizacion
+			fprintf(fc, " %f",M(red,dim));
+			}
+			fprintf(fc, "\n");
+
+		*m=0.0;
+		*H=0.0;
+		for(i=0;i<N_prom;i++){
+			flip_libre(red,dim,spin,delta_E,B,p_l,indice);
+			a=energia_sin_int(red,dim, B);
+			b=M(red,dim);
+			*H=*H+a;
+			*H_cuad=*H_cuad+a*a;
+			*m=*m+b;
+			*m_cuad=*m_cuad+b*b;}
+		*H=*H/((float)N_prom);
+		*H_cuad=*H_cuad/((float)N_prom);
+		*m=*m/((float)N_prom);
+		*m_cuad=*m_cuad/((float)N_prom);
+		//imprimir(red,dim);
+		fprintf(fp, "%f %f %f %f %f %f\n", 1.0/B,B, *H, *m,*H_cuad,*m_cuad);
+		
 	}
 
 free(red);
@@ -251,6 +276,8 @@ free(m);
 free(H);
 free(p_l);
 fclose(fp);
+fclose(fc);
+fclose(findi);
 return 0;
 }
 
@@ -268,10 +295,11 @@ int problema2b(int N){
 	probas=(float*)malloc(5*sizeof(float));
 	delta_E=(float*)malloc(sizeof(float));
 	spin=(int*)malloc(sizeof(int));
+
 	
 	m=(float*)malloc(N*sizeof(float));
 	H=(float*)malloc(N*sizeof(float));
-	p_i=(float*)malloc(5*sizeof(float));
+	p_i=(float*)malloc(4*sizeof(float));
 	p_l=(float*)malloc(2*sizeof(float));
 
 	poblar(red, 0.5, dim);
@@ -295,7 +323,7 @@ int problema2b(int N){
 	
 
 
-	FILE *fp= fopen("pc_nu", "w");
+	FILE *fp= fopen("a", "w");
 
 
 free(red);
