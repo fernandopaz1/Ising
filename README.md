@@ -1,1 +1,1 @@
-Repositorio con simulaciones de Isin utilizando metropolis montecarlo
+Repositorio con simulaciones de Ising utilizando Metrópolis-Montecarlo
